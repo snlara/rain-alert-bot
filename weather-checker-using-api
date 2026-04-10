@@ -1,0 +1,59 @@
+## code is for checking weather using nws api data fead, output is weather in hayward, looks for rain.
+
+
+import requests
+import sys
+
+# 1. SETUP
+# NWS API endpoint for the Hayward/East Bay grid
+# Coordinates used: 37.66, -122.10
+URL = "https://api.weather.gov/gridpoints/MTR/94,89/forecast"
+
+# NWS requires a User-Agent to identify who is making the request.
+# You can put your email or a generic name here.
+HEADERS = {
+    'User-Agent': '(HaywardRainBot, contact@example.com)'
+}
+
+def get_hayward_forecast():
+    print("--- FETCHING HAYWARD NWS FORECAST ---")
+    
+    try:
+        response = requests.get(URL, headers=HEADERS)
+        
+        # If we get a 200 (Success)
+        if response.status_code == 200:
+            data = response.json()
+            periods = data['properties']['periods']
+            
+            print(f"{'DAY':<20} | {'RAIN %':<8} | {'FORECAST'}")
+            print("-" * 55)
+            
+            alerts_found = 0
+            for period in periods:
+                # Extract the rain probability value
+                # Sometimes it's None, so we default to 0
+                precip = period.get('probabilityOfPrecipitation', {})
+                chance = precip.get('value', 0) if precip.get('value') is not None else 0
+                
+                # Filter for your > 30% criteria
+                if chance > 30:
+                    day_name = period['name']
+                    short_forecast = period['shortForecast']
+                    print(f"⚠️ {day_name:<18} | {chance:>5}%   | {short_forecast}")
+                    alerts_found += 1
+            
+            if alerts_found == 0:
+                print("✅ No significant rain (>30%) in the current forecast.")
+                
+        elif response.status_code == 403:
+            print("❌ Access Denied: NWS requires a valid User-Agent header.")
+        else:
+            print(f"❌ Error: Received status code {response.status_code}")
+            
+    except Exception as e:
+        print(f"❌ CRITICAL ERROR: {e}")
+
+if __name__ == "__main__":
+    get_hayward_forecast()
+    print("\n--- SCRIPT FINISHED ---")
