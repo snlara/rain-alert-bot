@@ -1,0 +1,75 @@
+import requests
+import sys
+
+# --- CONFIGURATION ---
+# Replace this with your ACTUAL Private API Key from Mailgun
+API_KEY = "xxx"
+DOMAIN = "xxx"
+
+
+import requests
+import sys
+from plyer import notification # NEW: For desktop notifications
+
+# --- CONFIGURATION ---
+MAILGUN_API_KEY = "xxx"
+MAILGUN_DOMAIN = "xxx"
+TO_EMAIL = "xxx"
+
+# NWS API for Hayward
+WEATHER_URL = "https://api.weather.gov/gridpoints/MTR/94,89/forecast"
+HEADERS = {'User-Agent': '(HaywardRainBot, xxx@gmail.com)'}
+
+def show_desktop_alert(report_text):
+    """Triggers a pop-up on your Windows/Mac/Linux desktop."""
+    notification.notify(
+        title="⚠️ Hayward Rain Alert",
+        message=f"Rain expected in the next 5 days!\n{report_text[:100]}...", # Keeps it short for the pop-up
+        app_name="Hayward Weather Bot",
+        timeout=10 # Notification stays for 10 seconds
+    )
+
+def send_mailgun_email(rain_report):
+    """Sends the report via Mailgun API."""
+    api_url = f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages"
+    requests.post(
+        api_url,
+        auth=("api", MAILGUN_API_KEY),
+        data={
+            "from": f"sals rainboy <snlara@gmail.com>",
+            "to": TO_EMAIL,
+            "subject": " Hayward Rain Alert",
+            "text": f"Weather alert for Hayward:\n\n{rain_report}"
+        }
+    )
+
+def check_weather():
+    print("--- CHECKING HAYWARD FORECAST ---")
+    try:
+        resp = requests.get(WEATHER_URL, headers=HEADERS)
+        if resp.status_code == 200:
+            data = resp.json()
+            periods = data['properties']['periods']
+            
+            rain_days = []
+            for period in periods[:10]:
+                precip = period.get('probabilityOfPrecipitation', {})
+                chance = precip.get('value', 0) if precip.get('value') is not None else 0
+                
+                if chance > 30:
+                    rain_days.append(f"- {period['name']}: {chance}% ({period['shortForecast']})")
+            
+            if rain_days:
+                report = "\n".join(rain_days)
+                print(f"Rain found! Sending alerts...")
+                
+                # BOTH ALERTS TRIGGER HERE
+                show_desktop_alert(report) 
+                send_mailgun_email(report)
+            else:
+                print("✅ Forecast looks dry. No alert sent.")
+    except Exception as e:
+        print(f"Error: {e}")
+
+if __name__ == "__main__":
+    check_weather()
